@@ -7,9 +7,12 @@
     "build": "hardhat compile",
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy": "hardhat ignition deploy ignition/modules/Lock.ts",
-    "deploy:alfajores": "hardhat ignition deploy ignition/modules/Lock.ts --network alfajores",
-    "deploy:celo": "hardhat ignition deploy ignition/modules/Lock.ts --network celo",
+    "deploy": "hardhat run scripts/deploy.ts",
+    "deploy:alfajores": "hardhat run scripts/deploy.ts --network alfajores",
+    "deploy:celo": "hardhat run scripts/deploy.ts --network celo",
+    "upgrade": "hardhat run scripts/upgrade.ts",
+    "upgrade:alfajores": "hardhat run scripts/upgrade.ts --network alfajores",
+    "upgrade:celo": "hardhat run scripts/upgrade.ts --network celo",
     "verify": "hardhat verify",
     "clean": "hardhat clean",
     "typechain": "hardhat typechain"
@@ -47,6 +50,9 @@
     "viem": "^2.0.0"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.0.0"
+    "@openzeppelin/contracts": "^5.0.0",
+    "@openzeppelin/contracts-upgradeable": "^5.4.0",
+    "@openzeppelin/hardhat-upgrades": "^3.9.1",
+    "dotenv": "^17.2.2"
   }
 }
