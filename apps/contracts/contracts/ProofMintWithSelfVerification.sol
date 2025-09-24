@@ -1,71 +1,105 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+// Importing OpenZeppelin's Ownable for access control, allowing only the contract owner to perform admin tasks.
 import "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import {ERC721URIStorage} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SelfVerificationRoot} from "@selfxyz/contracts/contracts/abstract/SelfVerificationRoot.sol";
+import {ISelfVerificationRoot} from "@selfxyz/contracts/contracts/interfaces/ISelfVerificationRoot.sol";
 
-contract ProofMintTest is
+// ProofMint contract with Self Protocol human verification integration
+// Enables decentralized tracking of gadget ownership and lifecycle with human verification
+// It uses IPFS for immutable receipt metadata storage and enforces role-based access for merchants, buyers, and recyclers.
+// This contract prioritizes security, transparency, and extensibility for supply chain use cases.
+contract ProofMintWithSelfVerification is
     Ownable,
     ERC721,
     ERC721Enumerable,
     ERC721URIStorage,
-    ReentrancyGuard,
-    Pausable
+    SelfVerificationRoot
 {
+    // Event to track successful human verifications
+    event HumanVerificationCompleted(
+        address indexed user,
+        ISelfVerificationRoot.GenericDiscloseOutputV2 output,
+        bytes userData
+    );
+
+    // Enum defining gadget lifecycle states for clear status tracking.
     enum GadgetStatus {
-        Active,
-        Stolen,
-        Misplaced,
-        Recycled
+        Active, // 0 - Gadget is in normal use
+        Stolen, // 1 - Gadget reported as stolen
+        Misplaced, // 2 - Gadget reported as lost/misplaced
+        Recycled // 3 - Gadget has been recycled
     }
 
+    // Enum defining subscription tiers with different limits and pricing.
     enum SubscriptionTier {
-        Basic,
-        Premium,
-        Enterprise
+        Basic, // 0 - Basic tier: 100 receipts/month
+        Premium, // 1 - Premium tier: 500 receipts/month
+        Enterprise // 2 - Enterprise tier: unlimited receipts
     }
 
+    // Struct to store merchant subscription details.
     struct Subscription {
-        SubscriptionTier tier;
-        uint256 expiresAt;
-        uint256 receiptsIssued;
-        uint256 lastResetTime;
-        bool isActive;
+        SubscriptionTier tier; // Subscription tier level
+        uint256 expiresAt; // Timestamp when subscription expires
+        uint256 receiptsIssued; // Number of receipts issued this period
+        uint256 lastResetTime; // Last time receipt counter was reset
+        bool isActive; // Whether subscription is currently active
     }
 
+    // Struct to store receipt details, linking ownership and metadata.
     struct Receipt {
-        uint256 id;
-        address merchant;
-        address buyer;
-        string ipfsHash;
-        uint256 timestamp;
-        GadgetStatus gadgetStatus;
-        uint256 lastStatusUpdate;
+        uint256 id; // Unique identifier for the receipt
+        address merchant; // Address of the merchant issuing the receipt
+        address buyer; // Address of the buyer/owner
+        string ipfsHash; // IPFS hash storing receipt metadata (e.g., serial number, description)
+        uint256 timestamp; // Creation timestamp of the receipt
+        GadgetStatus gadgetStatus; // Current status of the gadget
+        uint256 lastStatusUpdate; // Timestamp of the last status change
     }
 
-    mapping(address => bool) public verifiedMerchants;
-    mapping(address => bool) public recyclers;
-    mapping(uint256 => Receipt) public receipts;
-    mapping(address => uint256[]) public merchantReceipts;
-    mapping(address => uint256[]) public buyerReceipts;
+    // Storage mappings for efficient data retrieval.
+    mapping(address => bool) public verifiedMerchants; // Tracks verified merchants
+    mapping(address => bool) public recyclers; // Tracks verified recyclers
+    mapping(address => bool) public verifiedHumans; // Tracks human-verified users
+    mapping(uint256 => Receipt) public receipts; // Maps receipt ID to receipt details
+    mapping(address => uint256[]) public merchantReceipts; // Maps merchant to their issued receipt IDs
+    mapping(address => uint256[]) public buyerReceipts; // Maps buyer to their purchased receipt IDs
     mapping(address => Subscription) public subscriptions;
+    mapping(address => string) public merchantName;
 
-    // Subscription pricing in ETH
+    // Self Protocol verification configuration
+    bytes32 public verificationConfigId;
+    address public lastVerifiedUser;
+
+    // USDC token address (Base Sepolia testnet)
+    IERC20 public constant USDC =
+        IERC20(0x036CbD53842c5426634e7929541eC2318f3dCF7e);
+
+    // Subscription pricing in USDC (6 decimals)
+    uint256 public constant BASIC_MONTHLY_PRICE = 10 * 10 ** 6; // $10 USDC
+    uint256 public constant PREMIUM_MONTHLY_PRICE = 50 * 10 ** 6; // $50 USDC
+    uint256 public constant ENTERPRISE_MONTHLY_PRICE = 100 * 10 ** 6; // $100 USDC
+
+    // ETH pricing (for backward compatibility)
     uint256 public constant BASIC_MONTHLY_PRICE_ETH = 0.001 ether;
     uint256 public constant PREMIUM_MONTHLY_PRICE_ETH = 0.005 ether;
     uint256 public constant ENTERPRISE_MONTHLY_PRICE_ETH = 0.01 ether;
 
+    // Receipt limits per subscription tier
     uint256 public constant BASIC_RECEIPT_LIMIT = 100;
     uint256 public constant PREMIUM_RECEIPT_LIMIT = 500;
     uint256 public constant GRACE_PERIOD = 7 days;
     uint256 public constant MONTHLY_DURATION = 30 days;
 
-    uint256 public nextReceiptId = 1;
+    uint256 public nextReceiptId;
 
+    // Events
     event MerchantAdded(address indexed merchant);
     event MerchantRemoved(address indexed merchant);
     event RecyclerAdded(address indexed recycler);
@@ -90,8 +124,10 @@ contract ProofMintTest is
     );
     event SubscriptionExpired(address indexed merchant);
 
+    // Custom errors
     error NotVerifiedMerchant();
     error NotRecycler();
+    error NotVerifiedHuman();
     error OnlyAdmin();
     error OnlyBuyerCanFlag();
     error InvalidReceipt();
@@ -99,9 +135,63 @@ contract ProofMintTest is
     error ReceiptLimitExceeded();
     error InvalidPayment();
     error InvalidDuration();
+    error HumanVerificationRequired();
 
-    constructor() ERC721("Proofmint", "PFMT") Ownable(msg.sender) {}
+    /**
+     * @notice Constructor for the contract
+     * @param _identityVerificationHubV2Address The address of the Identity Verification Hub V2
+     * @param _scope The scope of the contract
+     * @param _verificationConfigId The configuration ID for the contract
+     */
+    constructor(
+        address _identityVerificationHubV2Address,
+        uint256 _scope,
+        bytes32 _verificationConfigId
+    )
+        ERC721("Proofmint", "PFMT")
+        Ownable(msg.sender)
+        SelfVerificationRoot(_identityVerificationHubV2Address, _scope)
+    {
+        verificationConfigId = _verificationConfigId;
+        nextReceiptId = 1;
+    }
 
+    /**
+     * @notice Implementation of customVerificationHook
+     * @dev This function is called by onVerificationSuccess after hub address validation
+     * @param _output The verification output from the hub
+     * @param _userData The user data passed through verification
+     */
+    function customVerificationHook(
+        ISelfVerificationRoot.GenericDiscloseOutputV2 memory _output,
+        bytes memory _userData
+    ) internal override {
+        lastVerifiedUser = address(uint160(_output.userIdentifier));
+        verifiedHumans[lastVerifiedUser] = true;
+
+        emit HumanVerificationCompleted(lastVerifiedUser, _output, _userData);
+    }
+
+    function getConfigId(
+        bytes32 _destinationChainId,
+        bytes32 _userIdentifier,
+        bytes memory _userDefinedData
+    ) public view override returns (bytes32) {
+        return verificationConfigId;
+    }
+
+    /**
+     * @notice Check if an address is a verified human
+     */
+    function isVerifiedHuman(address _user) external view returns (bool) {
+        return verifiedHumans[_user];
+    }
+
+    function setConfigId(bytes32 _configId) external onlyOwner {
+        verificationConfigId = _configId;
+    }
+
+    // Modifiers
     modifier onlyVerifiedMerchant() {
         if (!verifiedMerchants[msg.sender]) revert NotVerifiedMerchant();
         _;
@@ -117,6 +207,17 @@ contract ProofMintTest is
         _;
     }
 
+    modifier onlyVerifiedHuman() {
+        if (!verifiedHumans[msg.sender]) revert NotVerifiedHuman();
+        _;
+    }
+
+    modifier requiresHumanVerification() {
+        if (!verifiedHumans[msg.sender]) revert HumanVerificationRequired();
+        _;
+    }
+
+    // Admin functions
     function addMerchant(address merchantAddr) external onlyAdmin {
         require(merchantAddr != address(0), "Invalid merchant address");
         require(!verifiedMerchants[merchantAddr], "Merchant already added");
@@ -132,10 +233,25 @@ contract ProofMintTest is
         emit MerchantRemoved(merchantAddr);
     }
 
+    function addRecycler(address recycler) external onlyAdmin {
+        require(recycler != address(0), "Invalid recycler address");
+        require(!recyclers[recycler], "Recycler already added");
+        recyclers[recycler] = true;
+        emit RecyclerAdded(recycler);
+    }
+
+    function removeRecycler(address recycler) external onlyAdmin {
+        require(recycler != address(0), "Invalid recycler address");
+        require(recyclers[recycler], "Recycler not found");
+        recyclers[recycler] = false;
+        emit RecyclerRemoved(recycler);
+    }
+
+    // Subscription functions with human verification requirement
     function purchaseSubscription(
         SubscriptionTier tier,
         uint256 durationMonths
-    ) external payable whenNotPaused {
+    ) external payable requiresHumanVerification {
         if (!verifiedMerchants[msg.sender]) revert NotVerifiedMerchant();
         if (durationMonths == 0 || durationMonths > 12)
             revert InvalidDuration();
@@ -144,7 +260,7 @@ contract ProofMintTest is
         uint256 totalPrice = monthlyPrice * durationMonths;
 
         if (durationMonths == 12) {
-            totalPrice = (totalPrice * 90) / 100;
+            totalPrice = (totalPrice * 90) / 100; // 10% discount for yearly
         }
 
         if (msg.value != totalPrice) revert InvalidPayment();
@@ -168,7 +284,9 @@ contract ProofMintTest is
         );
     }
 
-    function renewSubscription(uint256 durationMonths) external payable {
+    function renewSubscription(
+        uint256 durationMonths
+    ) external payable requiresHumanVerification {
         if (!verifiedMerchants[msg.sender]) revert NotVerifiedMerchant();
         if (durationMonths == 0 || durationMonths > 12)
             revert InvalidDuration();
@@ -178,7 +296,7 @@ contract ProofMintTest is
         uint256 totalPrice = monthlyPrice * durationMonths;
 
         if (durationMonths == 12) {
-            totalPrice = (totalPrice * 90) / 100;
+            totalPrice = (totalPrice * 90) / 100; // 10% discount for yearly
         }
 
         if (msg.value != totalPrice) revert InvalidPayment();
@@ -205,24 +323,16 @@ contract ProofMintTest is
         return ENTERPRISE_MONTHLY_PRICE_ETH;
     }
 
-    function addRecycler(address recycler) external onlyAdmin {
-        require(recycler != address(0), "Invalid recycler address");
-        require(!recyclers[recycler], "Recycler already added");
-        recyclers[recycler] = true;
-        emit RecyclerAdded(recycler);
-    }
-
-    function removeRecycler(address recycler) external onlyAdmin {
-        require(recycler != address(0), "Invalid recycler address");
-        require(recyclers[recycler], "Recycler not found");
-        recyclers[recycler] = false;
-        emit RecyclerRemoved(recycler);
-    }
-
+    // Receipt functions with human verification requirement
     function issueReceipt(
         address buyer,
         string calldata ipfsHash
-    ) external onlyVerifiedMerchant whenNotPaused returns (uint256 id) {
+    )
+        external
+        onlyVerifiedMerchant
+        requiresHumanVerification
+        returns (uint256 id)
+    {
         _checkSubscriptionAndLimits(msg.sender);
 
         id = nextReceiptId++;
@@ -277,19 +387,11 @@ contract ProofMintTest is
         }
     }
 
-    function getMerchantReceipts(
-        address merchant
-    ) external view returns (uint256[] memory) {
-        return merchantReceipts[merchant];
-    }
-
-    function getUserReceipts(
-        address user
-    ) external view returns (uint256[] memory) {
-        return buyerReceipts[user];
-    }
-
-    function flagGadget(uint256 receiptId, GadgetStatus status) external {
+    // Gadget status functions with human verification requirement
+    function flagGadget(
+        uint256 receiptId,
+        GadgetStatus status
+    ) external requiresHumanVerification {
         Receipt storage receipt = receipts[receiptId];
         if (receipt.merchant == address(0)) revert InvalidReceipt();
         if (receipt.buyer != msg.sender) revert OnlyBuyerCanFlag();
@@ -300,7 +402,9 @@ contract ProofMintTest is
         emit GadgetStatusChanged(receiptId, status, msg.sender);
     }
 
-    function recycleGadget(uint256 receiptId) external onlyRecycler {
+    function recycleGadget(
+        uint256 receiptId
+    ) external onlyRecycler requiresHumanVerification {
         Receipt storage receipt = receipts[receiptId];
         if (receipt.merchant == address(0)) revert InvalidReceipt();
 
@@ -309,6 +413,19 @@ contract ProofMintTest is
 
         emit GadgetRecycled(receiptId, msg.sender);
         emit GadgetStatusChanged(receiptId, GadgetStatus.Recycled, msg.sender);
+    }
+
+    // View functions
+    function getMerchantReceipts(
+        address merchant
+    ) external view returns (uint256[] memory) {
+        return merchantReceipts[merchant];
+    }
+
+    function getUserReceipts(
+        address user
+    ) external view returns (uint256[] memory) {
+        return buyerReceipts[user];
     }
 
     function viewAllReceipts()
@@ -406,6 +523,69 @@ contract ProofMintTest is
         );
     }
 
+    function getSubscriptionPricing()
+        external
+        pure
+        returns (
+            uint256 basicMonthly,
+            uint256 premiumMonthly,
+            uint256 enterpriseMonthly,
+            uint256 yearlyDiscount
+        )
+    {
+        return (
+            BASIC_MONTHLY_PRICE_ETH,
+            PREMIUM_MONTHLY_PRICE_ETH,
+            ENTERPRISE_MONTHLY_PRICE_ETH,
+            10
+        );
+    }
+
+    function canIssueReceipts(address merchant) external view returns (bool) {
+        if (!verifiedMerchants[merchant]) return false;
+        if (!verifiedHumans[merchant]) return false; // Require human verification
+
+        Subscription memory sub = subscriptions[merchant];
+        if (!sub.isActive) return false;
+        if (block.timestamp > sub.expiresAt + GRACE_PERIOD) return false;
+
+        uint256 currentReceiptCount = sub.receiptsIssued;
+        if (block.timestamp >= sub.lastResetTime + MONTHLY_DURATION) {
+            currentReceiptCount = 0;
+        }
+
+        if (
+            sub.tier == SubscriptionTier.Basic &&
+            currentReceiptCount >= BASIC_RECEIPT_LIMIT
+        ) {
+            return false;
+        }
+        if (
+            sub.tier == SubscriptionTier.Premium &&
+            currentReceiptCount >= PREMIUM_RECEIPT_LIMIT
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function getnextReceiptId() external view returns (uint256) {
+        return nextReceiptId;
+    }
+
+    function getVersion() external pure returns (string memory) {
+        return "2.0.0-with-self-verification";
+    }
+
+    // Merchant name functions
+    function setMerchantName(
+        string calldata name
+    ) external onlyVerifiedMerchant requiresHumanVerification {
+        merchantName[msg.sender] = name;
+    }
+
+    // Required overrides for multiple inheritance
     function _increaseBalance(
         address account,
         uint128 value
@@ -438,25 +618,8 @@ contract ProofMintTest is
         return super.supportsInterface(interfaceId);
     }
 
-    function getSubscriptionPricing()
-        external
-        pure
-        returns (
-            uint256 basicMonthly,
-            uint256 premiumMonthly,
-            uint256 enterpriseMonthly,
-            uint256 yearlyDiscount
-        )
-    {
-        return (
-            BASIC_MONTHLY_PRICE_ETH,
-            PREMIUM_MONTHLY_PRICE_ETH,
-            ENTERPRISE_MONTHLY_PRICE_ETH,
-            10
-        );
-    }
-
-    function withdrawFunds() external onlyAdmin nonReentrant {
+    // Admin functions for emergency management
+    function withdrawFunds() external onlyAdmin {
         uint256 balance = address(this).balance;
         require(balance > 0, "No funds to withdraw");
 
@@ -474,47 +637,13 @@ contract ProofMintTest is
         }
     }
 
-    function canIssueReceipts(address merchant) external view returns (bool) {
-        if (!verifiedMerchants[merchant]) return false;
-
-        Subscription memory sub = subscriptions[merchant];
-        if (!sub.isActive) return false;
-        if (block.timestamp > sub.expiresAt + GRACE_PERIOD) return false;
-
-        uint256 currentReceiptCount = sub.receiptsIssued;
-        if (block.timestamp >= sub.lastResetTime + MONTHLY_DURATION) {
-            currentReceiptCount = 0;
-        }
-
-        if (
-            sub.tier == SubscriptionTier.Basic &&
-            currentReceiptCount >= BASIC_RECEIPT_LIMIT
-        ) {
-            return false;
-        }
-        if (
-            sub.tier == SubscriptionTier.Premium &&
-            currentReceiptCount >= PREMIUM_RECEIPT_LIMIT
-        ) {
-            return false;
-        }
-
-        return true;
+    // Emergency function to manually verify humans (admin only)
+    function emergencyVerifyHuman(address user) external onlyAdmin {
+        verifiedHumans[user] = true;
     }
 
-    function getnextReceiptId() external view returns (uint256) {
-        return nextReceiptId;
-    }
-
-    function pause() external onlyAdmin {
-        _pause();
-    }
-
-    function unpause() external onlyAdmin {
-        _unpause();
-    }
-
-    function getVersion() external pure returns (string memory) {
-        return "1.0.0";
+    // Emergency function to revoke human verification (admin only)
+    function revokeHumanVerification(address user) external onlyAdmin {
+        verifiedHumans[user] = false;
     }
 }
