@@ -3,11 +3,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Globe, Plus, Receipt, Store, Upload, X } from "lucide-react";
-import { useAccount } from "wagmi";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
+import { CONTRACT_CONFIG } from "@/utils/selfProtocol";
+import proofmintAbi from "@/contract/abi.json";
+import { makeContractMetadata } from "@/utils/UploadPinta";
 import Header from "@/components/home/Header";
 import Footer from "@/components/home/Footer";
 import StatsCard from "@/components/merchant/StatsCard";
 import AllReceipts from "@/components/merchant/AllReceipts";
+import SubscriptionManager from "@/components/merchant/SubscriptionManager";
 
 // Dummy data for demonstration
 const dummyMerchantStats = {
@@ -23,7 +27,7 @@ const dummyReceipts = [
         productName: "iPhone 15 Pro",
         buyer: "0x742d35Cc6634C0532925a3b8D0Ac6bc4Cb4C0C",
         amount: "999.99",
-        status: "Paid",
+        status: "Paid" as "Paid" | "Pending" | "Cancelled",
         purchaseDate: "2024-01-15",
         merchant: "Apple Store",
     },
@@ -32,7 +36,7 @@ const dummyReceipts = [
         productName: "MacBook Air M3",
         buyer: "0x8ba1f109551bD432803012645Hac136c",
         amount: "1199.99",
-        status: "Pending",
+        status: "Pending" as "Paid" | "Pending" | "Cancelled",
         purchaseDate: "2024-01-14",
         merchant: "Apple Store",
     },
@@ -41,7 +45,7 @@ const dummyReceipts = [
         productName: "Samsung Galaxy S24",
         buyer: "0x1234567890123456789012345678901234567890",
         amount: "799.99",
-        status: "Paid",
+        status: "Paid" as "Paid" | "Pending" | "Cancelled",
         purchaseDate: "2024-01-13",
         merchant: "Apple Store",
     },
@@ -49,7 +53,7 @@ const dummyReceipts = [
 
 const MerchantDashboard: React.FC = () => {
     const { isConnected, address } = useAccount();
-    const [activeTab, setActiveTab] = useState<"overview" | "receipts" | "products">("overview");
+    const [activeTab, setActiveTab] = useState<"overview" | "receipts" | "products" | "subscription">("overview");
     const [isMounted, setIsMounted] = useState(false);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [merchantLabel, setMerchantLabel] = useState("");
@@ -67,6 +71,53 @@ const MerchantDashboard: React.FC = () => {
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [message, setMessage] = useState('');
+
+    // Contract interaction hooks
+    const { writeContract, data: hash, error, isPending } = useWriteContract();
+    const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+    // Check if user is a verified merchant
+    const { data: isMerchant } = useReadContract({
+        address: CONTRACT_CONFIG.address as `0x${string}`,
+        abi: proofmintAbi,
+        functionName: 'isVerifiedMerchant',
+        args: address ? [address] : undefined,
+        query: {
+            enabled: !!address,
+        },
+    });
+
+    // Check if user can issue receipts
+    const { data: canIssueReceipts } = useReadContract({
+        address: CONTRACT_CONFIG.address as `0x${string}`,
+        abi: proofmintAbi,
+        functionName: 'canIssueReceipts',
+        args: address ? [address] : undefined,
+        query: {
+            enabled: !!address,
+        },
+    });
+
+    // Get merchant receipts
+    const { data: merchantReceiptIds } = useReadContract({
+        address: CONTRACT_CONFIG.address as `0x${string}`,
+        abi: proofmintAbi,
+        functionName: 'getMerchantReceipts',
+        args: address ? [address] : undefined,
+        query: {
+            enabled: !!address,
+        },
+    });
+
+    // Callback to refresh data when subscription is updated
+    const handleSubscriptionUpdate = () => {
+        // Trigger re-fetch of merchant status and receipts capability
+        window.location.reload(); // Simple refresh for now
+    };
+
+    const merchantStatus = isMerchant as boolean | undefined;
+    const canIssue = canIssueReceipts as boolean | undefined;
 
     // Handle hydration
     useEffect(() => {
@@ -82,13 +133,13 @@ const MerchantDashboard: React.FC = () => {
         if (file) {
             // Validate file type
             if (!file.type.startsWith("image/")) {
-                alert("Please select an image file");
+                setMessage("❌ Please select an image file");
                 return;
             }
 
             // Validate file size (max 5MB)
             if (file.size > 5 * 1024 * 1024) {
-                alert("Image size must be less than 5MB");
+                setMessage("❌ Image size must be less than 5MB");
                 return;
             }
 
@@ -114,16 +165,62 @@ const MerchantDashboard: React.FC = () => {
     const handleReceipt = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         setIsUploading(true);
+        setMessage('');
+
 
         try {
             if (!newProduct.image) {
-                alert("Please upload a product image");
+                setMessage('❌ Please upload a product image');
+                setIsUploading(false);
                 return;
             }
 
-            console.log("Starting product addition and receipt issuance process...");
-            alert("Product added and receipt issued successfully!");
+            if (!newProduct.buyerAddress) {
+                setMessage('❌ Please enter buyer address');
+                setIsUploading(false);
+                return;
+            }
 
+            if (!merchantStatus) {
+                setMessage('❌ You are not a verified merchant');
+                setIsUploading(false);
+                return;
+            }
+
+            if (!canIssue) {
+                setMessage('❌ You cannot issue receipts. Check your subscription status.');
+                setIsUploading(false);
+                return;
+            }
+
+            // Upload to IPFS using Pinata
+            const ipfsHash = await makeContractMetadata({
+                imageFile: newProduct.image,
+                recipt: newProduct.name,
+                description: newProduct.description,
+                serial_number: newProduct.serial_number,
+                spec: newProduct.specs,
+                ens: newProduct.ens,
+            });
+
+            // Issue receipt on contract
+            await writeContract({
+                address: CONTRACT_CONFIG.address as `0x${string}`,
+                abi: proofmintAbi,
+                functionName: 'issueReceipt',
+                args: [newProduct.buyerAddress as `0x${string}`, ipfsHash],
+            });
+
+        } catch (error) {
+            setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            setIsUploading(false);
+        }
+    };
+
+    // Reset form when transaction succeeds
+    React.useEffect(() => {
+        if (isSuccess) {
+            setMessage('✅ Receipt issued successfully!');
             // Reset form
             setNewProduct({
                 name: "",
@@ -140,13 +237,10 @@ const MerchantDashboard: React.FC = () => {
             if (fileInputRef.current) {
                 fileInputRef.current.value = "";
             }
-        } catch (error) {
-            console.error("Error processing receipt:", error);
-            alert("Failed to process receipt. Please try again.");
-        } finally {
-            setIsUploading(false);
+        } else if (error) {
+            setMessage(`❌ Transaction failed: ${error.message}`);
         }
-    };
+    }, [isSuccess, error]);
 
     const handleRegisterMerchant = async () => {
         if (!merchantLabel.trim()) return;
@@ -198,8 +292,8 @@ const MerchantDashboard: React.FC = () => {
         );
     }
 
-    // Check if user has a registered domain (simplified for demo)
-    const hasDomain = true; // For demo purposes, always show merchant dashboard
+    // Check if user is a verified merchant
+    const hasDomain = merchantStatus; // Show merchant dashboard only if verified merchant
 
     if (!hasDomain) {
         return (
@@ -210,10 +304,9 @@ const MerchantDashboard: React.FC = () => {
                         <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
                             <Store className="w-10 h-10 text-gray-400" />
                         </div>
-                        <h1 className="text-3xl font-bold mb-4">Merchant Domain Required</h1>
+                        <h1 className="text-3xl font-bold mb-4">Merchant Verification Required</h1>
                         <p className="text-gray-600 mb-6">
-                            You need to register a merchant domain to access the merchant dashboard. This creates your unique merchant
-                            identity on the My Celo App network.
+                            You need to be verified as a merchant to access the merchant dashboard. Contact the admin to get verified as a merchant.
                         </p>
                         <div className="space-y-4">
                             <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
@@ -311,10 +404,19 @@ const MerchantDashboard: React.FC = () => {
                                 <p className="text-lg text-gray-600">Manage your products and track receipts</p>
                             </div>
                             <div className="flex items-center space-x-4">
-                                <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                                <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${merchantStatus
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-red-100 text-red-800'
+                                    }`}>
                                     <Store className="w-3 h-3" />
-                                    Verified Merchant
+                                    {merchantStatus ? 'Verified Merchant' : 'Not Verified'}
                                 </div>
+                                {canIssue && (
+                                    <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                                        <Receipt className="w-3 h-3" />
+                                        Can Issue Receipts
+                                    </div>
+                                )}
                                 {address && (
                                     <div className="text-sm text-gray-500">
                                         {address.slice(0, 6)}...{address.slice(-4)}
@@ -334,13 +436,14 @@ const MerchantDashboard: React.FC = () => {
                                 { id: "overview", label: "Overview" },
                                 { id: "receipts", label: "Receipts" },
                                 { id: "products", label: "Products" },
+                                { id: "subscription", label: "Subscription" },
                             ].map(tab => (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
                                     className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id
-                                            ? "border-blue-600 text-blue-600"
-                                            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                        ? "border-blue-600 text-blue-600"
+                                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                                         }`}
                                 >
                                     {tab.label}
@@ -466,7 +569,35 @@ const MerchantDashboard: React.FC = () => {
 
                         {/* Add Product Form */}
                         <div className="bg-white rounded-xl shadow-sm border p-6">
-                            <h4 className="text-lg font-medium mb-4">Add New Product</h4>
+                            <h4 className="text-lg font-medium mb-4">Issue Receipt</h4>
+
+                            {/* Status Messages */}
+                            {message && (
+                                <div className={`mb-4 p-3 rounded-md ${message.includes('Error') || message.includes('failed')
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-green-100 text-green-700'
+                                    }`}>
+                                    {message}
+                                </div>
+                            )}
+
+                            {/* Merchant Status Warning */}
+                            {!merchantStatus && (
+                                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                                    <p className="text-sm text-yellow-800">
+                                        ⚠️ You are not a verified merchant. Contact admin to get verified.
+                                    </p>
+                                </div>
+                            )}
+
+                            {merchantStatus && !canIssue && (
+                                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                                    <p className="text-sm text-yellow-800">
+                                        ⚠️ You cannot issue receipts. Check your subscription status.
+                                    </p>
+                                </div>
+                            )}
+
                             <form onSubmit={e => handleReceipt(e)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Product Name</label>
@@ -606,16 +737,16 @@ const MerchantDashboard: React.FC = () => {
                                 <div className="md:col-span-2">
                                     <button
                                         type="submit"
-                                        disabled={isUploading}
-                                        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                                        disabled={isUploading || isPending || isConfirming || !merchantStatus || !canIssue}
+                                        className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
                                     >
-                                        {isUploading ? (
+                                        {isUploading || isPending || isConfirming ? (
                                             <>
                                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                <span>Uploading...</span>
+                                                <span>{isUploading ? 'Uploading...' : 'Processing...'}</span>
                                             </>
                                         ) : (
-                                            <span>Add Product</span>
+                                            <span>Issue Receipt</span>
                                         )}
                                     </button>
                                 </div>
@@ -629,6 +760,23 @@ const MerchantDashboard: React.FC = () => {
                                 <p>No products added yet. Add your first product above.</p>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {/* Subscription Tab */}
+                {activeTab === "subscription" && (
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold">Subscription Management</h3>
+                            <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${canIssue
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                                }`}>
+                                {canIssue ? '✅ Can Issue Receipts' : '❌ Cannot Issue Receipts'}
+                            </div>
+                        </div>
+
+                        <SubscriptionManager onSubscriptionUpdate={handleSubscriptionUpdate} />
                     </div>
                 )}
             </main>

@@ -90,15 +90,17 @@ tsconfig.json      # TypeScript configuration
 
 
 
+
+Compiled 1 Solidity file successfully (evm target: paris).
 Deploying ProofMintWithSelfVerification to Celo Alfajores...
 Deploying with account: 0x9dBa18e9b96b905919cC828C399d313EfD55D800
-Account balance: 1.0 CELO
+Account balance: 0.886994254951 CELO
 Self Protocol Configuration:
 - Identity Verification Hub V2: 0x68c931C9a534D37aa78094877F46fE46a49F1A51
 - Scope: 9398241477204171864069474337943544794043419568465634980149683672897061745343
 - Verification Config ID: 0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61
 Deploying ProofMintWithSelfVerification...
-ProofMintWithSelfVerification deployed to: 0x8dcc416736ad938bd0768f44857C51a8f5E9a4c9
+ProofMintWithSelfVerification deployed to: 0x2438d45101c8062d5B0007B631C04fB42647705D
 Verifying deployment...
 Contract Details:
 - Name: Proofmint
@@ -110,7 +112,7 @@ Contract Details:
 
 Deployment completed successfully!
 
-Contract Address: 0x8dcc416736ad938bd0768f44857C51a8f5E9a4c9
+Contract Address: 0x2438d45101c8062d5B0007B631C04fB42647705D
 
 Next steps:
 1. Add merchants using addMerchant() function

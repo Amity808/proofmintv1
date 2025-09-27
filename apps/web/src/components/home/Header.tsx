@@ -81,6 +81,12 @@ export default function Header() {
             icon: FaRecycle,
             description: "Sustainable disposal",
         },
+        {
+            to: "/admin",
+            label: "Admin",
+            icon: FaCog,
+            description: "Admin functions & verification",
+        },
     ];
 
     const userStats = {

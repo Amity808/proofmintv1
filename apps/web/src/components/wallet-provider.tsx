@@ -2,32 +2,42 @@
 
 import { RainbowKitProvider, connectorsForWallets } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
-import { injectedWallet } from "@rainbow-me/rainbowkit/wallets";
+import {
+  injectedWallet,
+  metaMaskWallet,
+  walletConnectWallet,
+  coinbaseWallet
+} from "@rainbow-me/rainbowkit/wallets";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { WagmiProvider, createConfig, http, useConnect } from "wagmi";
-import { celo, celoAlfajores } from "wagmi/chains";
+import { celo, celoAlfajores, celoSepolia } from "wagmi/chains";
 import { ConnectButton } from "./connect-button";
 
 const connectors = connectorsForWallets(
   [
     {
       groupName: "Recommended",
-      wallets: [injectedWallet],
+      wallets: [
+        injectedWallet,
+        metaMaskWallet,
+        coinbaseWallet,
+        walletConnectWallet,
+      ],
     },
   ],
   {
-    appName: "my-celo-app",
-    projectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID!,
+    appName: "ProofMint",
+    projectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID || "default-project-id",
   }
 );
 
 const wagmiConfig = createConfig({
-  chains: [celo, celoAlfajores],
+  chains: [celo, celoSepolia],
   connectors,
   transports: {
     [celo.id]: http(),
-    [celoAlfajores.id]: http(),
+    [celoSepolia.id]: http(),
   },
   ssr: true,
 });

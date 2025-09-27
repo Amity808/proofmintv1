@@ -1,7 +1,7 @@
 import hre from "hardhat";
 
 async function main() {
-    console.log("Deploying ProofMintWithSelfVerification to Celo Alfajores...");
+    console.log("Deploying ProofMintWithSelfVerification to Celo Sepolia...");
 
     // Get the deployer account
     const signers = await hre.ethers.getSigners();

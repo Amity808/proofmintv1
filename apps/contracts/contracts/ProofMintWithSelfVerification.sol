@@ -77,19 +77,19 @@ contract ProofMintWithSelfVerification is
     bytes32 public verificationConfigId;
     address public lastVerifiedUser;
 
-    // USDC token address (Base Sepolia testnet)
+    // USDC token address (Celo Alfajores testnet)
     IERC20 public constant USDC =
-        IERC20(0x036CbD53842c5426634e7929541eC2318f3dCF7e);
+        IERC20(0x01C5C0122039549AD1493B8220cABEdD739BC44E);
 
-    // Subscription pricing in USDC (6 decimals)
-    uint256 public constant BASIC_MONTHLY_PRICE = 10 * 10 ** 6; // $10 USDC
-    uint256 public constant PREMIUM_MONTHLY_PRICE = 50 * 10 ** 6; // $50 USDC
-    uint256 public constant ENTERPRISE_MONTHLY_PRICE = 100 * 10 ** 6; // $100 USDC
+    // Subscription pricing in USDC (6 decimals) - TESTNET PRICES
+    uint256 public constant BASIC_MONTHLY_PRICE = 1 * 10 ** 6; // $1 USDC
+    uint256 public constant PREMIUM_MONTHLY_PRICE = 1 * 10 ** 6; // $1 USDC
+    uint256 public constant ENTERPRISE_MONTHLY_PRICE = 1 * 10 ** 6; // $1 USDC
 
-    // ETH pricing (for backward compatibility)
-    uint256 public constant BASIC_MONTHLY_PRICE_ETH = 0.001 ether;
-    uint256 public constant PREMIUM_MONTHLY_PRICE_ETH = 0.005 ether;
-    uint256 public constant ENTERPRISE_MONTHLY_PRICE_ETH = 0.01 ether;
+    // ETH pricing (for backward compatibility) - TESTNET PRICES
+    uint256 public constant BASIC_MONTHLY_PRICE_ETH = 0.0001 ether;
+    uint256 public constant PREMIUM_MONTHLY_PRICE_ETH = 0.0001 ether;
+    uint256 public constant ENTERPRISE_MONTHLY_PRICE_ETH = 0.0001 ether;
 
     // Receipt limits per subscription tier
     uint256 public constant BASIC_RECEIPT_LIMIT = 100;
@@ -251,7 +251,7 @@ contract ProofMintWithSelfVerification is
     function purchaseSubscription(
         SubscriptionTier tier,
         uint256 durationMonths
-    ) external payable requiresHumanVerification {
+    ) external requiresHumanVerification {
         if (!verifiedMerchants[msg.sender]) revert NotVerifiedMerchant();
         if (durationMonths == 0 || durationMonths > 12)
             revert InvalidDuration();
@@ -263,7 +263,11 @@ contract ProofMintWithSelfVerification is
             totalPrice = (totalPrice * 90) / 100; // 10% discount for yearly
         }
 
-        if (msg.value != totalPrice) revert InvalidPayment();
+        // Transfer USDC from user to contract
+        require(
+            USDC.transferFrom(msg.sender, address(this), totalPrice),
+            "USDC transfer failed"
+        );
 
         uint256 newExpirationTime = block.timestamp +
             (durationMonths * MONTHLY_DURATION);
@@ -286,7 +290,7 @@ contract ProofMintWithSelfVerification is
 
     function renewSubscription(
         uint256 durationMonths
-    ) external payable requiresHumanVerification {
+    ) external requiresHumanVerification {
         if (!verifiedMerchants[msg.sender]) revert NotVerifiedMerchant();
         if (durationMonths == 0 || durationMonths > 12)
             revert InvalidDuration();
@@ -299,7 +303,11 @@ contract ProofMintWithSelfVerification is
             totalPrice = (totalPrice * 90) / 100; // 10% discount for yearly
         }
 
-        if (msg.value != totalPrice) revert InvalidPayment();
+        // Transfer USDC from user to contract
+        require(
+            USDC.transferFrom(msg.sender, address(this), totalPrice),
+            "USDC transfer failed"
+        );
 
         uint256 extensionBase = sub.expiresAt > block.timestamp
             ? sub.expiresAt
@@ -318,9 +326,9 @@ contract ProofMintWithSelfVerification is
     function getSubscriptionPrice(
         SubscriptionTier tier
     ) internal pure returns (uint256) {
-        if (tier == SubscriptionTier.Basic) return BASIC_MONTHLY_PRICE_ETH;
-        if (tier == SubscriptionTier.Premium) return PREMIUM_MONTHLY_PRICE_ETH;
-        return ENTERPRISE_MONTHLY_PRICE_ETH;
+        if (tier == SubscriptionTier.Basic) return BASIC_MONTHLY_PRICE;
+        if (tier == SubscriptionTier.Premium) return PREMIUM_MONTHLY_PRICE;
+        return ENTERPRISE_MONTHLY_PRICE;
     }
 
     // Receipt functions with human verification requirement
@@ -534,9 +542,9 @@ contract ProofMintWithSelfVerification is
         )
     {
         return (
-            BASIC_MONTHLY_PRICE_ETH,
-            PREMIUM_MONTHLY_PRICE_ETH,
-            ENTERPRISE_MONTHLY_PRICE_ETH,
+            BASIC_MONTHLY_PRICE,
+            PREMIUM_MONTHLY_PRICE,
+            ENTERPRISE_MONTHLY_PRICE,
             10
         );
     }
@@ -625,6 +633,13 @@ contract ProofMintWithSelfVerification is
 
         (bool success, ) = payable(owner()).call{value: balance}("");
         require(success, "Withdrawal failed");
+    }
+
+    function withdrawUSDC() external onlyAdmin {
+        uint256 balance = USDC.balanceOf(address(this));
+        require(balance > 0, "No USDC to withdraw");
+
+        require(USDC.transfer(owner(), balance), "USDC transfer failed");
     }
 
     function pauseMerchantSubscription(
