@@ -527,17 +527,17 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ onSubscriptio
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
                             <span className="text-sm text-gray-700">Merchant Verification:</span>
-                            <span className={`font-medium ${isMerchant ? 'text-green-600' : 'text-red-600'
+                            <span className={`font-medium ${(isMerchant as boolean) ? 'text-green-600' : 'text-red-600'
                                 }`}>
-                                {isMerchant ? '✅ Verified' : '❌ Not Verified'}
+                                {(isMerchant as boolean) ? '✅ Verified' : '❌ Not Verified'}
                             </span>
                         </div>
 
                         <div className="flex justify-between items-center">
                             <span className="text-sm text-gray-700">Human Verification:</span>
-                            <span className={`font-medium ${isHumanVerified ? 'text-green-600' : 'text-red-600'
+                            <span className={`font-medium ${(isHumanVerified as boolean) ? 'text-green-600' : 'text-red-600'
                                 }`}>
-                                {isHumanVerified ? '✅ Verified' : '❌ Not Verified'}
+                                {(isHumanVerified as boolean) ? '✅ Verified' : '❌ Not Verified'}
                             </span>
                         </div>
                     </div>
@@ -580,11 +580,11 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ onSubscriptio
 
                         <div className="flex justify-between items-center">
                             <span className="text-sm text-blue-800">Contract Approval:</span>
-                            <span className={`font-medium ${usdcAllowance && Number(usdcAllowance) >= calculatePrice() * 1e6
+                            <span className={`font-medium ${!!usdcAllowance && Number(usdcAllowance) >= calculatePrice() * 1e6
                                 ? 'text-green-600'
                                 : 'text-red-600'
                                 }`}>
-                                {usdcAllowance && Number(usdcAllowance) >= calculatePrice() * 1e6
+                                {!!usdcAllowance && Number(usdcAllowance) >= calculatePrice() * 1e6
                                     ? '✅ Approved'
                                     : '❌ Not Approved'
                                 }
@@ -599,7 +599,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ onSubscriptio
                         </div>
                     )}
 
-                    {usdcAllowance && Number(usdcAllowance) < calculatePrice() * 1e6 && (
+                    {!!usdcAllowance && Number(usdcAllowance) < calculatePrice() * 1e6 && (
                         <div className="mt-3 p-2 bg-yellow-100 border border-yellow-200 rounded text-sm text-yellow-800">
                             ⚠️ USDC approval will be handled automatically when you purchase.
                         </div>
@@ -610,22 +610,22 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ onSubscriptio
                 <button
                     onClick={handlePurchaseSubscription}
                     disabled={
-                        (isPending as boolean) ||
-                        (isConfirming as boolean) ||
-                        (isApprovalPending as boolean) ||
-                        (isApprovalConfirming as boolean) ||
+                        !!isPending ||
+                        !!isConfirming ||
+                        !!isApprovalPending ||
+                        !!isApprovalConfirming ||
                         !address ||
                         !(isMerchant as boolean) ||
                         !(isHumanVerified as boolean) ||
-                        (usdcBalance && Number(usdcBalance) < calculatePrice() * 1e6)
+                        (!!usdcBalance && Number(usdcBalance) < calculatePrice() * 1e6)
                     }
                     className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                    {((isPending as boolean) || (isConfirming as boolean) || (isApprovalPending as boolean) || (isApprovalConfirming as boolean)) ? (
+                    {(!!isPending || !!isConfirming || !!isApprovalPending || !!isApprovalConfirming) ? (
                         <>
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                             <span>
-                                {(isApprovalPending as boolean) || (isApprovalConfirming as boolean) ? 'Approving USDC...' : 'Processing...'}
+                                {!!isApprovalPending || !!isApprovalConfirming ? 'Approving USDC...' : 'Processing...'}
                             </span>
                         </>
                     ) : (
