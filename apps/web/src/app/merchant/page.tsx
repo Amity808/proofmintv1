@@ -12,44 +12,10 @@ import Footer from "@/components/home/Footer";
 import StatsCard from "@/components/merchant/StatsCard";
 import AllReceipts from "@/components/merchant/AllReceipts";
 import SubscriptionManager from "@/components/merchant/SubscriptionManager";
+import { useMerchantReceipts } from "@/hooks/useAllReceipts";
 
-// Dummy data for demonstration
-const dummyMerchantStats = {
-    totalReceiptsIssued: 24,
-    totalRevenue: 12450,
-    activeProducts: 8,
-    recentReceipts: 5,
-};
-
-const dummyReceipts = [
-    {
-        id: "1",
-        productName: "iPhone 15 Pro",
-        buyer: "0x742d35Cc6634C0532925a3b8D0Ac6bc4Cb4C0C",
-        amount: "999.99",
-        status: "Paid" as "Paid" | "Pending" | "Cancelled",
-        purchaseDate: "2024-01-15",
-        merchant: "Apple Store",
-    },
-    {
-        id: "2",
-        productName: "MacBook Air M3",
-        buyer: "0x8ba1f109551bD432803012645Hac136c",
-        amount: "1199.99",
-        status: "Pending" as "Paid" | "Pending" | "Cancelled",
-        purchaseDate: "2024-01-14",
-        merchant: "Apple Store",
-    },
-    {
-        id: "3",
-        productName: "Samsung Galaxy S24",
-        buyer: "0x1234567890123456789012345678901234567890",
-        amount: "799.99",
-        status: "Paid" as "Paid" | "Pending" | "Cancelled",
-        purchaseDate: "2024-01-13",
-        merchant: "Apple Store",
-    },
-];
+// Contract address - you may need to update this
+const CONTRACT_ADDRESS = "0xd18793cA49171cD6eD7E03fC4C73dC6354D09ebf";
 
 const MerchantDashboard: React.FC = () => {
     const { isConnected, address } = useAccount();
@@ -124,9 +90,20 @@ const MerchantDashboard: React.FC = () => {
         setIsMounted(true);
     }, []);
 
-    const merchantReceipts = dummyReceipts.filter(
-        receipt => receipt.merchant === "Apple Store", // Assuming current merchant
-    );
+    // Get real merchant receipts from contract
+    const { receipts: merchantReceipts, isLoading: isLoadingReceipts } = useMerchantReceipts(address);
+
+    // Calculate real stats from contract data
+    const merchantStats = {
+        totalReceiptsIssued: merchantReceipts.length,
+        totalRevenue: 0, // This would need to be calculated from actual transaction data
+        activeProducts: merchantReceipts.filter(r => r.gadgetStatus === 0).length,
+        recentReceipts: merchantReceipts.filter(r => {
+            const receiptDate = new Date(r.timestamp * 1000);
+            const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            return receiptDate > weekAgo;
+        }).length,
+    };
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -460,13 +437,13 @@ const MerchantDashboard: React.FC = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             <StatsCard
                                 title="Total Receipts Issued"
-                                value={dummyMerchantStats.totalReceiptsIssued}
+                                value={merchantStats.totalReceiptsIssued}
                                 icon={<Receipt className="w-6 h-6" />}
                                 color="green"
                             />
                             <StatsCard
                                 title="Total Revenue"
-                                value={`$${dummyMerchantStats.totalRevenue.toLocaleString()}`}
+                                value={`$${merchantStats.totalRevenue.toLocaleString()}`}
                                 icon={
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path
@@ -481,7 +458,7 @@ const MerchantDashboard: React.FC = () => {
                             />
                             <StatsCard
                                 title="Active Products"
-                                value={dummyMerchantStats.activeProducts}
+                                value={merchantStats.activeProducts}
                                 icon={
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path
@@ -496,7 +473,7 @@ const MerchantDashboard: React.FC = () => {
                             />
                             <StatsCard
                                 title="Recent Receipts"
-                                value={dummyMerchantStats.recentReceipts}
+                                value={merchantStats.recentReceipts}
                                 icon={
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -510,23 +487,32 @@ const MerchantDashboard: React.FC = () => {
                         <div className="bg-white rounded-xl shadow-sm border p-6">
                             <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
                             <div className="space-y-4">
-                                {merchantReceipts.slice(0, 5).map(receipt => (
-                                    <div key={receipt.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                        <div className="flex items-center space-x-3">
-                                            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                                                <Receipt className="w-5 h-5 text-green-600" />
+                                {merchantReceipts.slice(0, 5).map(receipt => {
+                                    const status = receipt.gadgetStatus === 0 ? "Active" :
+                                        receipt.gadgetStatus === 1 ? "Stolen" :
+                                            receipt.gadgetStatus === 2 ? "Misplaced" : "Recycled";
+                                    const statusColor = receipt.gadgetStatus === 0 ? "text-green-600" :
+                                        receipt.gadgetStatus === 1 ? "text-red-600" :
+                                            receipt.gadgetStatus === 2 ? "text-yellow-600" : "text-blue-600";
+
+                                    return (
+                                        <div key={receipt.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                            <div className="flex items-center space-x-3">
+                                                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                                    <Receipt className="w-5 h-5 text-green-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium text-gray-900">Receipt #{receipt.id}</p>
+                                                    <p className="text-sm text-gray-600">Buyer: {receipt.buyer.slice(0, 6)}...{receipt.buyer.slice(-4)}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-medium text-gray-900">{receipt.productName}</p>
-                                                <p className="text-sm text-gray-600">Receipt #{receipt.id}</p>
+                                            <div className="text-right">
+                                                <p className={`font-semibold ${statusColor}`}>{status}</p>
+                                                <p className="text-sm text-gray-600">{new Date(receipt.timestamp * 1000).toLocaleDateString()}</p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="font-semibold text-green-600">${receipt.amount}</p>
-                                            <p className="text-sm text-gray-600">{receipt.purchaseDate}</p>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
@@ -550,7 +536,7 @@ const MerchantDashboard: React.FC = () => {
                         </div>
 
                         {/* All receipt display */}
-                        <AllReceipts receipts={merchantReceipts} />
+                        <AllReceipts receipts={merchantReceipts} isLoading={isLoadingReceipts} />
                     </div>
                 )}
 
