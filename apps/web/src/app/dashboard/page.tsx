@@ -2,20 +2,41 @@
 
 import React, { useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount } from "wagmi";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import ReceiptCard from "@/components/common/ReceiptCard";
 import StatsCard from "@/components/common/StatsCard";
 import Header from "@/components/home/Header";
 import Footer from "@/components/home/Footer";
-import { dummyDashboardStats, dummyReceipts } from "@/data/dummyData";
+import { useBuyerReceipts } from "@/hooks/useAllReceipts";
 import { GadgetStatus } from "@/types";
+import { CONTRACT_CONFIG } from "@/utils/selfProtocol";
+import proofmintAbi from "@/contract/abi.json";
 
 const Dashboard: React.FC = () => {
-    const { isConnected } = useAccount();
+    const { isConnected, address } = useAccount();
     const [selectedStatus, setSelectedStatus] = useState<GadgetStatus | "all">("all");
+    const [message, setMessage] = useState('');
+
+    // Contract interaction hooks
+    const { writeContract, data: hash, error, isPending } = useWriteContract();
+    const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+    // Get real buyer receipts from contract
+    const { receipts: buyerReceipts, isLoading: isLoadingReceipts } = useBuyerReceipts(address);
+
+    // Calculate real stats from contract data
+    const dashboardStats = {
+        totalReceipts: buyerReceipts.length,
+        totalSpent: 0, // This would need to be calculated from actual transaction data
+        verifiedCount: buyerReceipts.filter(r => r.gadgetStatus === 0).length,
+        activeCount: buyerReceipts.filter(r => r.gadgetStatus === 0).length,
+        stolenCount: buyerReceipts.filter(r => r.gadgetStatus === 1).length,
+        misplacedCount: buyerReceipts.filter(r => r.gadgetStatus === 2).length,
+        recycledCount: buyerReceipts.filter(r => r.gadgetStatus === 3).length,
+    };
 
     const filteredReceipts =
-        selectedStatus === "all" ? dummyReceipts : dummyReceipts.filter(receipt => receipt.status === selectedStatus);
+        selectedStatus === "all" ? buyerReceipts : buyerReceipts.filter(receipt => receipt.gadgetStatus === selectedStatus);
 
     const handleViewDetails = (id: string) => {
         console.log("View details for receipt:", id);
@@ -27,10 +48,43 @@ const Dashboard: React.FC = () => {
         // TODO: Implement QR code generation
     };
 
-    const handleUpdateStatus = (id: string, status: GadgetStatus) => {
-        console.log("Update status for receipt:", id, "to:", status);
-        // TODO: Implement status update
+    const handleUpdateStatus = async (id: string, status: GadgetStatus) => {
+        if (!address) {
+            setMessage('❌ Please connect your wallet');
+            return;
+        }
+
+        setMessage('');
+
+        try {
+            // Convert string id to number
+            const receiptId = parseInt(id);
+
+            // Update receipt status on contract
+            await writeContract({
+                address: CONTRACT_CONFIG.address as `0x${string}`,
+                abi: proofmintAbi,
+                functionName: 'flagGadget',
+                args: [BigInt(receiptId), status],
+            });
+
+            setMessage('🔄 Status update submitted! Waiting for confirmation...');
+        } catch (error) {
+            console.error('❌ Status update error:', error);
+            setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
     };
+
+    // Handle transaction success
+    React.useEffect(() => {
+        if (isSuccess) {
+            setMessage('✅ Receipt status updated successfully!');
+            // Optionally refresh the receipts data
+            setTimeout(() => setMessage(''), 3000);
+        } else if (error) {
+            setMessage(`❌ Transaction failed: ${error.message}`);
+        }
+    }, [isSuccess, error]);
 
     if (!isConnected) {
         return (
@@ -69,7 +123,7 @@ const Dashboard: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <StatsCard
                         title="Total Receipts"
-                        value={dummyDashboardStats.totalReceipts}
+                        value={dashboardStats.totalReceipts}
                         icon={
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path
@@ -84,7 +138,7 @@ const Dashboard: React.FC = () => {
                     />
                     <StatsCard
                         title="Total Spent"
-                        value={`$${dummyDashboardStats.totalSpent.toLocaleString()}`}
+                        value={`$${dashboardStats.totalSpent.toLocaleString()}`}
                         icon={
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path
@@ -98,8 +152,8 @@ const Dashboard: React.FC = () => {
                         color="blue"
                     />
                     <StatsCard
-                        title="Verified"
-                        value={dummyDashboardStats.verifiedCount}
+                        title="Active Receipts"
+                        value={dashboardStats.activeCount}
                         icon={
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -108,6 +162,27 @@ const Dashboard: React.FC = () => {
                         color="purple"
                     />
                 </div>
+
+                {/* Message Display */}
+                {message && (
+                    <div className={`mb-6 p-4 rounded-lg ${message.includes('Error') || message.includes('failed')
+                        ? 'bg-red-100 text-red-700 border border-red-200'
+                        : 'bg-green-100 text-green-700 border border-green-200'
+                        }`}>
+                        <div className="flex items-center space-x-2">
+                            {message.includes('Error') || message.includes('failed') ? (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            ) : (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            )}
+                            <span className="font-medium">{message}</span>
+                        </div>
+                    </div>
+                )}
 
                 {/* Status Filter */}
                 <div className="mb-6">
@@ -119,7 +194,7 @@ const Dashboard: React.FC = () => {
                                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                                 }`}
                         >
-                            All ({dummyReceipts.length})
+                            All ({buyerReceipts.length})
                         </button>
                         <button
                             onClick={() => setSelectedStatus(GadgetStatus.Active)}
@@ -128,7 +203,7 @@ const Dashboard: React.FC = () => {
                                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                                 }`}
                         >
-                            Active ({dummyDashboardStats.activeCount})
+                            Active ({dashboardStats.activeCount})
                         </button>
                         <button
                             onClick={() => setSelectedStatus(GadgetStatus.Stolen)}
@@ -137,7 +212,7 @@ const Dashboard: React.FC = () => {
                                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                                 }`}
                         >
-                            Stolen ({dummyDashboardStats.stolenCount})
+                            Stolen ({dashboardStats.stolenCount})
                         </button>
                         <button
                             onClick={() => setSelectedStatus(GadgetStatus.Misplaced)}
@@ -146,7 +221,7 @@ const Dashboard: React.FC = () => {
                                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                                 }`}
                         >
-                            Misplaced ({dummyDashboardStats.misplacedCount})
+                            Misplaced ({dashboardStats.misplacedCount})
                         </button>
                         <button
                             onClick={() => setSelectedStatus(GadgetStatus.Recycled)}
@@ -155,7 +230,7 @@ const Dashboard: React.FC = () => {
                                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                                 }`}
                         >
-                            Recycled ({dummyDashboardStats.recycledCount})
+                            Recycled ({dashboardStats.recycledCount})
                         </button>
                     </div>
                 </div>
@@ -167,6 +242,7 @@ const Dashboard: React.FC = () => {
                             <ReceiptCard
                                 key={receipt.id}
                                 id={receipt.id.toString()}
+                                receipt={receipt}
                                 onViewDetails={handleViewDetails}
                                 onGenerateQR={handleGenerateQR}
                                 onUpdateStatus={handleUpdateStatus}

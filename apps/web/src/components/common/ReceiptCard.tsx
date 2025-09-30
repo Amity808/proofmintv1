@@ -4,24 +4,43 @@ import { GadgetStatus } from "@/types";
 
 interface ReceiptCardProps {
     id: string;
+    receipt?: {
+        id: number;
+        merchant: string;
+        buyer: string;
+        ipfsHash: string;
+        timestamp: number;
+        gadgetStatus: number;
+        lastStatusUpdate: number;
+    };
     onViewDetails: (id: string) => void;
     onGenerateQR: (id: string) => void;
     onUpdateStatus?: (id: string, status: GadgetStatus) => void;
 }
 
-const ReceiptCard: React.FC<ReceiptCardProps> = ({ id, onViewDetails, onGenerateQR, onUpdateStatus }) => {
-    // Mock data for demonstration
-    const mockReceipt = {
+const ReceiptCard: React.FC<ReceiptCardProps> = ({ id, receipt, onViewDetails, onGenerateQR, onUpdateStatus }) => {
+    // Use real receipt data if available, otherwise fall back to mock data
+    const receiptData = receipt || {
         id: parseInt(id),
+        merchant: "0x0000000000000000000000000000000000000000",
+        buyer: "0x0000000000000000000000000000000000000000",
+        ipfsHash: "",
+        timestamp: Date.now() / 1000,
+        gadgetStatus: GadgetStatus.Active,
+        lastStatusUpdate: Date.now() / 1000,
+    };
+
+    const mockReceipt = {
+        id: receiptData.id,
         productName: "iPhone 15 Pro",
         productId: "IPH15PRO-001",
-        purchaseDate: "2024-01-15",
+        purchaseDate: new Date(receiptData.timestamp * 1000).toLocaleDateString(),
         price: "999.99",
         currency: "USD",
-        merchant: "Apple Store",
+        merchant: receiptData.merchant.slice(0, 6) + "..." + receiptData.merchant.slice(-4),
         transactionHash: "0x1234...5678",
-        status: GadgetStatus.Active,
-        ipfsHash: "QmXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXx",
+        status: receiptData.gadgetStatus as GadgetStatus,
+        ipfsHash: receiptData.ipfsHash,
         image: "/api/placeholder/300/200",
         description: "Latest iPhone with Pro camera system",
         specs: ["6.1-inch display", "A17 Pro chip", "48MP camera", "Titanium design"],
@@ -166,8 +185,8 @@ const ReceiptCard: React.FC<ReceiptCardProps> = ({ id, onViewDetails, onGenerate
                                             key={status}
                                             onClick={() => onUpdateStatus(id, status as GadgetStatus)}
                                             className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 text-xs font-medium rounded-md transition-colors ${mockReceipt.status === status
-                                                    ? statusInfo.color
-                                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                                ? statusInfo.color
+                                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                                                 }`}
                                         >
                                             {statusInfo.icon}
