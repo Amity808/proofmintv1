@@ -1,7 +1,7 @@
 import { SelfAppBuilder, type SelfApp } from '@selfxyz/qrcode';
 import { ethers } from 'ethers';
 
-// Contract configuration from deployment
+// Contract configuration from deployment include the contract address 
 export const CONTRACT_CONFIG = {
     address: "0xd18793cA49171cD6eD7E03fC4C73dC6354D09ebf",
     hubAddress: "0x68c931C9a534D37aa78094877F46fE46a49F1A51",
