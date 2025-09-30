@@ -1,6 +1,7 @@
 import React from "react";
 import { Receipt, QrCode, Eye, MoreVertical, CheckCircle, AlertTriangle, XCircle, Recycle } from "lucide-react";
 import { GadgetStatus } from "@/types";
+import { useIPFSMetadata } from "@/hooks/useIPFSMetadata";
 
 interface ReceiptCardProps {
     id: string;
@@ -30,20 +31,42 @@ const ReceiptCard: React.FC<ReceiptCardProps> = ({ id, receipt, onViewDetails, o
         lastStatusUpdate: Date.now() / 1000,
     };
 
+    // Fetch IPFS metadata
+    const { metadata: ipfsMetadata, isLoading: isLoadingMetadata } = useIPFSMetadata(receiptData.ipfsHash);
+
+    // Convert IPFS hash to proper URL for image
+    const getProductImage = () => {
+        if (ipfsMetadata?.image && ipfsMetadata.image.startsWith('ipfs://')) {
+            const imageUrl = ipfsMetadata.image.replace("ipfs://", "https://ipfs.io/ipfs/");
+            console.log('IPFS Image URL:', imageUrl);
+            return imageUrl;
+        }
+        console.log('No IPFS image found, using placeholder');
+        return "/api/placeholder/300/200"; // Fallback to placeholder
+    };
+
+    // Get product specs from IPFS metadata
+    const getProductSpecs = () => {
+        if (ipfsMetadata?.spec) {
+            return ipfsMetadata.spec.split(',').map(spec => spec.trim());
+        }
+        return ["Product specifications not available"];
+    };
+
     const mockReceipt = {
         id: receiptData.id,
-        productName: "iPhone 15 Pro",
-        productId: "IPH15PRO-001",
+        productName: ipfsMetadata?.recipt || "Product",
+        productId: ipfsMetadata?.serial_number || `RECEIPT-${receiptData.id}`,
         purchaseDate: new Date(receiptData.timestamp * 1000).toLocaleDateString(),
-        price: "999.99",
+        price: "999.99", // This would need to be stored in metadata
         currency: "USD",
         merchant: receiptData.merchant.slice(0, 6) + "..." + receiptData.merchant.slice(-4),
         transactionHash: "0x1234...5678",
         status: receiptData.gadgetStatus as GadgetStatus,
         ipfsHash: receiptData.ipfsHash,
-        image: "/api/placeholder/300/200",
-        description: "Latest iPhone with Pro camera system",
-        specs: ["6.1-inch display", "A17 Pro chip", "48MP camera", "Titanium design"],
+        image: getProductImage(),
+        description: ipfsMetadata?.description || "Product description not available",
+        specs: getProductSpecs(),
     };
 
     const getStatusInfo = (status: GadgetStatus) => {
@@ -92,15 +115,21 @@ const ReceiptCard: React.FC<ReceiptCardProps> = ({ id, receipt, onViewDetails, o
         <div className="bg-white rounded-xl shadow-sm border hover:shadow-md transition-shadow duration-200 overflow-hidden">
             {/* Product Image */}
             <div className="relative h-48 bg-gray-100">
-                <img
-                    src={mockReceipt.image}
-                    alt={mockReceipt.productName}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = `https://via.placeholder.com/300x200/6366f1/ffffff?text=${encodeURIComponent(mockReceipt.productName)}`;
-                    }}
-                />
+                {isLoadingMetadata ? (
+                    <div className="w-full h-full flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                ) : (
+                    <img
+                        src={mockReceipt.image}
+                        alt={mockReceipt.productName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = `https://via.placeholder.com/300x200/6366f1/ffffff?text=${encodeURIComponent(mockReceipt.productName)}`;
+                        }}
+                    />
+                )}
                 <div className="absolute top-3 right-3">
                     <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
                         <div className={`w-2 h-2 rounded-full ${statusInfo.dotColor}`}></div>
