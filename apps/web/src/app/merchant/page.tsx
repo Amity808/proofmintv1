@@ -12,7 +12,9 @@ import Footer from "@/components/home/Footer";
 import StatsCard from "@/components/merchant/StatsCard";
 import AllReceipts from "@/components/merchant/AllReceipts";
 import SubscriptionManager from "@/components/merchant/SubscriptionManager";
+import FundWallet from "@/components/merchant/FundWallet";
 import { useMerchantReceipts } from "@/hooks/useAllReceipts";
+import { useUSDCBalance } from "@/hooks/useUSDCBalance";
 
 // Contract address - you may need to update this
 const CONTRACT_ADDRESS = "0xd18793cA49171cD6eD7E03fC4C73dC6354D09ebf";
@@ -22,6 +24,7 @@ const MerchantDashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState<"overview" | "receipts" | "products" | "subscription">("overview");
     const [isMounted, setIsMounted] = useState(false);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
+    const [showFundWallet, setShowFundWallet] = useState(false);
     const [merchantLabel, setMerchantLabel] = useState("");
     const [newProduct, setNewProduct] = useState({
         name: "",
@@ -92,6 +95,9 @@ const MerchantDashboard: React.FC = () => {
 
     // Get real merchant receipts from contract
     const { receipts: merchantReceipts, isLoading: isLoadingReceipts } = useMerchantReceipts(address);
+
+    // Get USDC balance
+    const { balance: usdcBalance, isLoading: isLoadingBalance } = useUSDCBalance();
 
     // Calculate real stats from contract data
     const merchantStats = {
@@ -483,6 +489,45 @@ const MerchantDashboard: React.FC = () => {
                             />
                         </div>
 
+                        {/* USDC Balance and Funding */}
+                        <div className="bg-white rounded-xl shadow-sm border p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center space-x-3">
+                                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-gray-900">USDC Balance</h3>
+                                        <p className="text-sm text-gray-600">Your wallet balance for subscriptions</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowFundWallet(true)}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                    </svg>
+                                    <span>Fund Wallet</span>
+                                </button>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-2xl font-bold text-gray-900">
+                                        {isLoadingBalance ? "Loading..." : `$${usdcBalance.toFixed(2)}`}
+                                    </p>
+                                    <p className="text-sm text-gray-600">USDC Available</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm text-gray-600">Subscription Costs:</p>
+                                    <p className="text-xs text-gray-500">Basic: $10 • Premium: $50 • Enterprise: $100</p>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Recent Activity */}
                         <div className="bg-white rounded-xl shadow-sm border p-6">
                             <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
@@ -762,11 +807,26 @@ const MerchantDashboard: React.FC = () => {
                             </div>
                         </div>
 
-                        <SubscriptionManager onSubscriptionUpdate={handleSubscriptionUpdate} />
+                        <SubscriptionManager
+                            onSubscriptionUpdate={handleSubscriptionUpdate}
+                            onFundWallet={() => setShowFundWallet(true)}
+                        />
                     </div>
                 )}
             </main>
             <Footer />
+
+            {/* Fund Wallet Modal */}
+            {showFundWallet && (
+                <FundWallet
+                    onSuccess={() => {
+                        setShowFundWallet(false);
+                        // Optionally refresh balance or show success message
+                    }}
+                    onClose={() => setShowFundWallet(false)}
+                    defaultAmount="50"
+                />
+            )}
         </div>
     );
 };

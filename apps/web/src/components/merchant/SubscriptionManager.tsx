@@ -4,13 +4,15 @@ import React, { useState } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import { CONTRACT_CONFIG } from '@/utils/selfProtocol';
 import proofmintAbi from '@/contract/abi.json';
-import { Calendar, Check, Clock, Crown, Star, Zap, AlertCircle } from 'lucide-react';
+import { Calendar, Check, Clock, Crown, Star, Zap, AlertCircle, Wallet } from 'lucide-react';
+import { useUSDCBalance, useHasEnoughUSDC } from '@/hooks/useUSDCBalance';
 
 interface SubscriptionManagerProps {
     onSubscriptionUpdate?: () => void;
+    onFundWallet?: () => void;
 }
 
-const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ onSubscriptionUpdate }) => {
+const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ onSubscriptionUpdate, onFundWallet }) => {
     const { address } = useAccount();
     const [selectedTier, setSelectedTier] = useState<number>(0); // 0=Basic, 1=Premium, 2=Enterprise
     const [selectedDuration, setSelectedDuration] = useState<number>(1);
@@ -48,24 +50,8 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ onSubscriptio
     // USDC contract address (Celo Alfajores)
     const USDC_ADDRESS = '0x01C5C0122039549AD1493B8220cABEdD739BC44E';
 
-    // Check USDC balance
-    const { data: usdcBalance } = useReadContract({
-        address: USDC_ADDRESS as `0x${string}`,
-        abi: [
-            {
-                "inputs": [{ "name": "account", "type": "address" }],
-                "name": "balanceOf",
-                "outputs": [{ "name": "", "type": "uint256" }],
-                "stateMutability": "view",
-                "type": "function"
-            }
-        ],
-        functionName: 'balanceOf',
-        args: address ? [address] : undefined,
-        query: {
-            enabled: !!address,
-        },
-    });
+    // USDC balance hooks
+    const { balance: usdcBalance, isLoading: isLoadingBalance } = useUSDCBalance();
 
     // Check USDC allowance
     const { data: usdcAllowance } = useReadContract({
@@ -635,6 +621,17 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ onSubscriptio
                         </>
                     )}
                 </button>
+
+                {/* Fund Wallet Button - Show when insufficient balance */}
+                {!!usdcBalance && Number(usdcBalance) < calculatePrice() * 1e6 && (
+                    <button
+                        onClick={() => onFundWallet?.()}
+                        className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2 mt-3"
+                    >
+                        <Wallet className="w-4 h-4" />
+                        <span>Fund Wallet with USDC</span>
+                    </button>
+                )}
 
                 <p className="text-xs text-gray-500 mt-3 text-center">
                     Payment will be processed in USDC. The system will automatically handle USDC approval if needed.

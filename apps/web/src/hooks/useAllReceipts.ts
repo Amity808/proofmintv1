@@ -66,7 +66,7 @@ export const useAllReceipts = () => {
 
         for (let i = 0; i < total; i++) {
             const query = receiptQueries[i];
-            if (query.data && query.data.length >= 7) {
+            if (query.data && Array.isArray(query.data) && query.data.length >= 7) {
                 const receiptData = query.data as any[];
                 // Check if receipt exists (merchant is not zero address)
                 if (receiptData[1] !== "0x0000000000000000000000000000000000000000") {
