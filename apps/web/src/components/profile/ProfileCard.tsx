@@ -20,7 +20,6 @@ import {
 
 interface ProfileData {
     address: string;
-    ensName?: string;
     avatar?: string;
     bio?: string;
     location?: string;
@@ -72,7 +71,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
 }) => {
     const [showFullBio, setShowFullBio] = useState(false);
 
-    const displayName = profileData.ensName || `${profileData.address.slice(0, 6)}...${profileData.address.slice(-4)}`;
+    const displayName = `${profileData.address.slice(0, 6)}...${profileData.address.slice(-4)}`;
 
     const getActivityIcon = (type: string) => {
         switch (type) {
@@ -109,7 +108,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
             <div className="flex items-center gap-3 p-3 bg-white/90 backdrop-blur-sm rounded-lg border border-gray-200">
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                     <span className="text-white font-semibold text-sm">
-                        {profileData.ensName ? profileData.ensName.charAt(0).toUpperCase() : "U"}
+                        {"U"}
                     </span>
                 </div>
                 <div className="flex-1">
@@ -129,7 +128,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
                 <div className="flex items-center gap-4">
                     <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                         <span className="text-white font-semibold text-lg">
-                            {profileData.ensName ? profileData.ensName.charAt(0).toUpperCase() : "U"}
+                            {"U"}
                         </span>
                     </div>
                     <div className="flex-1">
@@ -151,8 +150,8 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
                         <button
                             onClick={isFollowing ? onUnfollow : onFollow}
                             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${isFollowing
-                                    ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                    : "bg-blue-600 text-white hover:bg-blue-700"
+                                ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                : "bg-blue-600 text-white hover:bg-blue-700"
                                 }`}
                         >
                             {isFollowing ? "Following" : "Follow"}
@@ -171,7 +170,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
                     <div className="flex items-center gap-4">
                         <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                             <span className="text-white font-semibold text-2xl">
-                                {profileData.ensName ? profileData.ensName.charAt(0).toUpperCase() : "U"}
+                                {"U"}
                             </span>
                         </div>
                         <div>
@@ -224,8 +223,8 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
                             <button
                                 onClick={isFollowing ? onUnfollow : onFollow}
                                 className={`px-6 py-2 rounded-full font-medium transition-colors ${isFollowing
-                                        ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                        : "bg-blue-600 text-white hover:bg-blue-700"
+                                    ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                    : "bg-blue-600 text-white hover:bg-blue-700"
                                     }`}
                             >
                                 {isFollowing ? "Following" : "Follow"}

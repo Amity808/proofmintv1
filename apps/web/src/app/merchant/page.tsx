@@ -34,7 +34,6 @@ const MerchantDashboard: React.FC = () => {
         specs: "",
         image: null as File | null,
         serial_number: "",
-        ens: "",
         buyerAddress: "",
     });
     const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -183,7 +182,6 @@ const MerchantDashboard: React.FC = () => {
                 description: newProduct.description,
                 serial_number: newProduct.serial_number,
                 spec: newProduct.specs,
-                ens: newProduct.ens,
             });
 
             // Issue receipt on contract
@@ -213,7 +211,6 @@ const MerchantDashboard: React.FC = () => {
                 specs: "",
                 image: null,
                 serial_number: "",
-                ens: "",
                 buyerAddress: "",
             });
             setImagePreview(null);
@@ -294,7 +291,7 @@ const MerchantDashboard: React.FC = () => {
                         <div className="space-y-4">
                             <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
                                 <Globe className="w-4 h-4" />
-                                <span>Get your own .myceloapp.eth domain</span>
+                                <span>Get verified as a merchant</span>
                             </div>
                             <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
                                 <Receipt className="w-4 h-4" />
@@ -310,7 +307,7 @@ const MerchantDashboard: React.FC = () => {
                             className="mt-8 flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mx-auto"
                         >
                             <Plus className="w-5 h-5" />
-                            Register Merchant Domain
+                            Register Merchant
                         </button>
                     </div>
                 </div>
@@ -323,7 +320,7 @@ const MerchantDashboard: React.FC = () => {
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                                     <Store className="w-6 h-6 text-blue-600" />
-                                    Register Merchant Domain
+                                    Register Merchant
                                 </h3>
                                 <button onClick={() => setShowRegisterModal(false)} className="text-gray-400 hover:text-gray-600">
                                     <X className="w-6 h-6" />
@@ -332,17 +329,16 @@ const MerchantDashboard: React.FC = () => {
 
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Domain Label</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Business Name</label>
                                     <input
                                         type="text"
                                         value={merchantLabel}
                                         onChange={e => setMerchantLabel(e.target.value)}
-                                        placeholder="Enter your domain label (e.g., 'mystore')"
+                                        placeholder="Enter your business name (e.g., 'mystore')"
                                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                                     />
                                     <p className="text-sm text-gray-500 mt-1">
-                                        This will create:{" "}
-                                        <span className="font-mono text-blue-600">{merchantLabel || "yourlabel"}.myceloapp.eth</span>
+                                        This will register your merchant account
                                     </p>
                                 </div>
 
@@ -353,7 +349,7 @@ const MerchantDashboard: React.FC = () => {
                                         className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                                     >
                                         <Plus className="w-4 h-4" />
-                                        Register Domain
+                                        Register Merchant
                                     </button>
                                     <button
                                         onClick={() => setShowRegisterModal(false)}
@@ -699,16 +695,6 @@ const MerchantDashboard: React.FC = () => {
                                         value={newProduct.specs}
                                         onChange={e => setNewProduct(prev => ({ ...prev, specs: e.target.value }))}
                                         placeholder="e.g., 6.1-inch display, A17 Pro chip"
-                                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Ens Name</label>
-                                    <input
-                                        type="text"
-                                        value={newProduct.ens}
-                                        onChange={e => setNewProduct(prev => ({ ...prev, ens: e.target.value }))}
-                                        placeholder="e.g., Ajtech.eth"
                                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                                     />
                                 </div>

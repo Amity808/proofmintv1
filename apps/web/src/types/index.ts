@@ -43,7 +43,6 @@ export interface User {
     role: "buyer" | "merchant" | "recycler" | "admin";
     name?: string;
     email?: string;
-    ensName?: string;
 }
 
 export interface Merchant {
@@ -131,7 +130,6 @@ export interface WalletConnectionProps {
     onDisconnect: () => void;
     isConnected: boolean;
     address?: string;
-    ensName?: string;
 }
 
 export interface TransactionModalProps {

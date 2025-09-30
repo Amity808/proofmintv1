@@ -37,7 +37,6 @@ const Profile: React.FC = () => {
     // Profile data using connected address
     const profileData = {
         address: address || "0x0000000000000000000000000000000000000000",
-        ensName: "myceloapp.eth",
         avatar: undefined,
         bio: "Passionate about sustainable technology and blockchain innovation. Building a greener future through responsible electronics consumption and recycling.",
         location: "San Francisco, CA",
@@ -252,8 +251,8 @@ const Profile: React.FC = () => {
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
                                     className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.id
-                                            ? "border-blue-600 text-blue-600"
-                                            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                        ? "border-blue-600 text-blue-600"
+                                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                                         }`}
                                 >
                                     {tab.label}
@@ -349,13 +348,13 @@ const Profile: React.FC = () => {
                                 </div>
                                 <h3 className="text-2xl font-bold text-gray-900 mb-4">Become a Verified Merchant</h3>
                                 <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                                    Register your business domain to start issuing receipts, manage subscriptions, and access merchant
+                                    Register your business to start issuing receipts, manage subscriptions, and access merchant
                                     features.
                                 </p>
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
                                         <Globe className="w-4 h-4" />
-                                        <span>Get your own .myceloapp.eth domain</span>
+                                        <span>Get verified as a merchant</span>
                                     </div>
                                     <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
                                         <Receipt className="w-4 h-4" />
@@ -446,7 +445,7 @@ const Profile: React.FC = () => {
                         <div className="flex items-center justify-between mb-6">
                             <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                                 <Globe className="w-6 h-6 text-blue-600" />
-                                Register Merchant Domain
+                                Register Merchant
                             </h3>
                             <button onClick={() => setShowRegisterModal(false)} className="text-gray-400 hover:text-gray-600">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -457,17 +456,16 @@ const Profile: React.FC = () => {
 
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Domain Label</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Business Name</label>
                                 <input
                                     type="text"
                                     value={merchantLabel}
                                     onChange={e => setMerchantLabel(e.target.value)}
-                                    placeholder="Enter your domain label (e.g., 'mystore')"
+                                    placeholder="Enter your business name (e.g., 'mystore')"
                                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                                 />
                                 <p className="text-sm text-gray-500 mt-1">
-                                    This will create:{" "}
-                                    <span className="font-mono text-blue-600">{merchantLabel || "yourlabel"}.myceloapp.eth</span>
+                                    This will register your merchant account
                                 </p>
                             </div>
 
@@ -478,7 +476,7 @@ const Profile: React.FC = () => {
                                     className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <Plus className="w-4 h-4" />
-                                    Register Domain
+                                    Register Merchant
                                 </button>
                                 <button
                                     onClick={() => setShowRegisterModal(false)}

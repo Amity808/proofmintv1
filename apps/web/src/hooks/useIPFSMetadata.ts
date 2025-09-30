@@ -7,7 +7,6 @@ export interface IPFSMetadata {
     recipt?: string;
     serial_number?: string;
     spec?: string;
-    ens?: string;
     external_link?: string;
     properties?: {
         category?: string;
